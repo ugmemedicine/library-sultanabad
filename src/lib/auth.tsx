@@ -24,6 +24,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  async function syncUserProfile(user: User) {
+    const profileRef = doc(db, "users", user.uid);
+    const profileSnap = await getDoc(profileRef);
+    if (profileSnap.exists()) {
+      const loadedProfile = { uid: user.uid, ...profileSnap.data() } as AppUser;
+      setProfile(loadedProfile);
+      return loadedProfile;
+    }
+
+    const bootstrapProfile: AppUser = {
+      uid: user.uid,
+      displayName: user.displayName?.trim() || user.email?.split("@")[0] || "Library User",
+      email: user.email || "",
+      role: "member",
+      status: "active"
+    };
+
+    await setDoc(profileRef, bootstrapProfile);
+    setProfile(bootstrapProfile);
+    return bootstrapProfile;
+  }
+
   useEffect(() => {
     const wantsTestMode = process.env.NEXT_PUBLIC_TEST_MODE === "true";
     const isLocalhost = typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -52,23 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const profileRef = doc(db, "users", user.uid);
-        const profileSnap = await getDoc(profileRef);
-        if (profileSnap.exists()) {
-          setProfile({ uid: user.uid, ...profileSnap.data() } as AppUser);
-          return;
-        }
-
-        const bootstrapProfile: AppUser = {
-          uid: user.uid,
-          displayName: user.displayName?.trim() || user.email?.split("@")[0] || "Library User",
-          email: user.email || "",
-          role: "member",
-          status: "active"
-        };
-
-        await setDoc(profileRef, bootstrapProfile);
-        setProfile(bootstrapProfile);
+        await syncUserProfile(user);
       } catch (error) {
         console.error("Failed to load or bootstrap the user profile.", error);
         setProfile(null);
@@ -79,23 +85,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({
-      firebaseReady: firebaseConfigured,
-      testMode,
-      firebaseUser,
-      profile,
-      loading,
-      login: async (email, password) => {
-        if (testMode) return;
-        await signInWithEmailAndPassword(auth, email, password);
-      },
-      logout: async () => {
-        if (testMode) return;
+      () => ({
+        firebaseReady: firebaseConfigured,
+        testMode,
+        firebaseUser,
+        profile,
+        loading,
+        login: async (email, password) => {
+          if (testMode) return;
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        setFirebaseUser(result.user);
+        try {
+          await syncUserProfile(result.user);
+          setLoading(false);
+        } catch (error) {
+          console.error("Failed to bootstrap user after login.", error);
+          setProfile(null);
+          setLoading(false);
+          throw error;
+        }
+        },
+        logout: async () => {
+          if (testMode) return;
         await signOut(auth);
-      }
-    }),
-    [firebaseUser, loading, profile, testMode]
-  );
+        setFirebaseUser(null);
+        setProfile(null);
+        setLoading(false);
+        }
+      }),
+      [firebaseUser, loading, profile, testMode]
+    );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
