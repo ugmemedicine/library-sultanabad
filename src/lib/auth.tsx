@@ -13,6 +13,7 @@ interface AuthContextValue {
   profile: AppUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  ensureProfile: () => Promise<AppUser | null>;
   logout: () => Promise<void>;
 }
 
@@ -95,6 +96,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         firebaseUser,
         profile,
         loading,
+        ensureProfile: async () => {
+          if (!auth.currentUser) return null;
+          try {
+            return await syncUserProfile(auth.currentUser);
+          } catch (error) {
+            console.error("Failed to ensure the current user profile.", error);
+            return null;
+          }
+        },
         login: async (email, password) => {
           if (testMode) return;
         const result = await signInWithEmailAndPassword(auth, email, password);

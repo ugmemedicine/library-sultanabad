@@ -3,7 +3,7 @@
 import { BookOpen, Home, LogOut, Menu, RefreshCcw, RotateCcw, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { canAccess, navItems } from "@/lib/routes";
 import { roleLabel } from "@/lib/roles";
@@ -16,9 +16,22 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [navOpen, setNavOpen] = useState(false);
-  const { profile, loading, logout, firebaseReady, firebaseUser, testMode } = useAuth();
+  const [bootstrapCompleted, setBootstrapCompleted] = useState(false);
+  const { profile, loading, logout, firebaseReady, firebaseUser, testMode, ensureProfile } = useAuth();
 
-  if (loading) return <main className="content"><LoadingState /></main>;
+  useEffect(() => {
+    if (loading || testMode || !firebaseUser || profile || bootstrapCompleted) return;
+    let cancelled = false;
+    (async () => {
+      await ensureProfile();
+      if (!cancelled) setBootstrapCompleted(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapCompleted, ensureProfile, firebaseUser, loading, profile, testMode]);
+
+  if (loading || (firebaseUser && !profile && !bootstrapCompleted)) return <main className="content"><LoadingState /></main>;
   if (!firebaseReady && !testMode) {
     return (
       <main className="auth-page">
@@ -33,7 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
     return null;
   }
-  if (!profile) {
+  if (firebaseUser && !profile && bootstrapCompleted) {
     return (
       <main className="auth-page">
         <section className="auth-card">
@@ -43,13 +56,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
     );
   }
-  if (profile.status !== "active") {
+  const resolvedProfile = profile;
+  if (!resolvedProfile) return null;
+  if (resolvedProfile.status !== "active") {
     router.replace("/unauthorized");
     return null;
   }
 
-  const userFullName = firebaseUser?.displayName?.trim() || profile.displayName || profile.email;
-  const visibleItems = navItems.filter((item) => canAccess(profile.role, item.roles));
+  const userFullName = firebaseUser?.displayName?.trim() || resolvedProfile.displayName || resolvedProfile.email;
+  const visibleItems = navItems.filter((item) => canAccess(resolvedProfile.role, item.roles));
   return (
     <div className="app-shell">
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
@@ -74,7 +89,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
           <div className="topbar-user">
             <strong>{userFullName}</strong>
-            <div className="muted">{roleLabel(profile.role)}</div>
+            <div className="muted">{roleLabel(resolvedProfile.role)}</div>
           </div>
           <button className="button secondary" onClick={logout} type="button">
             <LogOut size={16} /> Logout
