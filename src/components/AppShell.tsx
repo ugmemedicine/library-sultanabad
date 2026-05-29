@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import type { AppUser } from "@/types";
 import { canAccess, navItems } from "@/lib/routes";
 import { roleLabel } from "@/lib/roles";
 import { LoadingState } from "@/components/LoadingState";
@@ -20,17 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [bootstrapCompleted, setBootstrapCompleted] = useState(false);
   const [bootstrappedProfile, setBootstrappedProfile] = useState<ReturnType<typeof useAuth>["profile"]>(null);
   const { profile, loading, logout, firebaseReady, firebaseUser, testMode, ensureProfile } = useAuth();
-
-  const fallbackProfile: AppUser | null = firebaseUser
-    ? {
-        uid: firebaseUser.uid,
-        displayName: firebaseUser.displayName?.trim() || firebaseUser.email?.split("@")[0] || "Library User",
-        email: firebaseUser.email || "",
-        role: "member",
-        status: "active"
-      }
-    : null;
-  const effectiveProfile = profile ?? bootstrappedProfile ?? fallbackProfile;
+  const effectiveProfile = profile ?? bootstrappedProfile;
 
   useEffect(() => {
     if (loading || testMode || !firebaseUser || profile || bootstrapCompleted) return;
