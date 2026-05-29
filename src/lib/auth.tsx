@@ -26,11 +26,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function syncUserProfile(user: User) {
     const profileRef = doc(db, "users", user.uid);
-    const profileSnap = await getDoc(profileRef);
-    if (profileSnap.exists()) {
-      const loadedProfile = { uid: user.uid, ...profileSnap.data() } as AppUser;
-      setProfile(loadedProfile);
-      return loadedProfile;
+    try {
+      const profileSnap = await getDoc(profileRef);
+      if (profileSnap.exists()) {
+        const loadedProfile = { uid: user.uid, ...profileSnap.data() } as AppUser;
+        setProfile(loadedProfile);
+        return loadedProfile;
+      }
+    } catch (error) {
+      console.warn("Profile read failed; attempting bootstrap for missing profile.", error);
     }
 
     const bootstrapProfile: AppUser = {
