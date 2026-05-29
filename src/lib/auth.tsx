@@ -1,6 +1,13 @@
 "use client";
 
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  type User
+} from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { auth, db, firebaseConfigured } from "@/lib/firebase";
@@ -13,6 +20,7 @@ interface AuthContextValue {
   profile: AppUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   ensureProfile: () => Promise<AppUser | null>;
   logout: () => Promise<void>;
 }
@@ -42,6 +50,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithEmailAndPassword(auth, email, password),
       new Promise<never>((_, reject) => {
         window.setTimeout(() => reject(new Error("Login timed out. Please try again.")), timeoutMs);
+      })
+    ]);
+  }
+
+  async function signInWithGoogle(timeoutMs = 12000) {
+    return await Promise.race([
+      signInWithPopup(auth, new GoogleAuthProvider()),
+      new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error("Google login timed out. Please try again.")), timeoutMs);
       })
     ]);
   }
@@ -144,12 +161,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         login: async (email, password) => {
           if (testMode) return;
-        const result = await signInWithTimeout(email, password);
-        setFirebaseUser(result.user);
-        setLoading(false);
-        void syncUserProfile(result.user).catch((error) => {
-          console.error("Failed to bootstrap user after login.", error);
-        });
+          try {
+            const result = await signInWithTimeout(email, password);
+            setFirebaseUser(result.user);
+            setLoading(false);
+            void syncUserProfile(result.user).catch((error) => {
+              console.error("Failed to bootstrap user after login.", error);
+            });
+          } catch (error) {
+            const errorCode = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : "";
+            if (errorCode === "auth/invalid-credential") {
+              throw new Error("Invalid email or password. If this account uses Google sign-in, use the Google button instead.");
+            }
+            throw error;
+          }
+        },
+        loginWithGoogle: async () => {
+          if (testMode) return;
+          const result = await signInWithGoogle();
+          setFirebaseUser(result.user);
+          setLoading(false);
+          void syncUserProfile(result.user).catch((error) => {
+            console.error("Failed to bootstrap Google user after login.", error);
+          });
         },
         logout: async () => {
           if (testMode) return;

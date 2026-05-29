@@ -1,6 +1,6 @@
 "use client";
 
-import { LogIn } from "lucide-react";
+import { Chrome, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, firebaseReady, firebaseUser, profile, loading } = useAuth();
+  const { login, loginWithGoogle, firebaseReady, firebaseUser, profile, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -33,6 +33,18 @@ export default function LoginPage() {
     }
   }
 
+  async function submitGoogle() {
+    setMessage("");
+    setSubmitting(true);
+    try {
+      await loginWithGoogle();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Google login failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <main className="auth-page">
       <form className="auth-card grid" onSubmit={submit}>
@@ -46,6 +58,9 @@ export default function LoginPage() {
         {message && <div className="notice">{message}</div>}
         <button className="button" type="submit" disabled={submitting}>
           <LogIn size={16} /> {submitting ? "Logging in..." : "Login"}
+        </button>
+        <button className="button secondary" type="button" onClick={submitGoogle} disabled={submitting}>
+          <Chrome size={16} /> Continue with Google
         </button>
       </form>
       <SiteFooter />
