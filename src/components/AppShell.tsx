@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import type { AppUser } from "@/types";
 import { canAccess, navItems } from "@/lib/routes";
 import { roleLabel } from "@/lib/roles";
 import { LoadingState } from "@/components/LoadingState";
@@ -20,23 +21,38 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [bootstrappedProfile, setBootstrappedProfile] = useState<ReturnType<typeof useAuth>["profile"]>(null);
   const { profile, loading, logout, firebaseReady, firebaseUser, testMode, ensureProfile } = useAuth();
 
+  const fallbackProfile: AppUser | null = firebaseUser
+    ? {
+        uid: firebaseUser.uid,
+        displayName: firebaseUser.displayName?.trim() || firebaseUser.email?.split("@")[0] || "Library User",
+        email: firebaseUser.email || "",
+        role: "member",
+        status: "active"
+      }
+    : null;
+  const effectiveProfile = profile ?? bootstrappedProfile ?? fallbackProfile;
+
   useEffect(() => {
     if (loading || testMode || !firebaseUser || profile || bootstrapCompleted) return;
+    setBootstrapCompleted(true);
     let cancelled = false;
     (async () => {
-      const ensuredProfile = await ensureProfile();
-      if (cancelled) return;
-      setBootstrappedProfile(ensuredProfile);
-      setBootstrapCompleted(true);
+      try {
+        const ensuredProfile = await ensureProfile();
+        if (cancelled) return;
+        setBootstrappedProfile(ensuredProfile);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to bootstrap profile in the app shell.", error);
+        }
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [bootstrapCompleted, ensureProfile, firebaseUser, loading, profile, testMode]);
 
-  const effectiveProfile = profile ?? bootstrappedProfile;
-
-  if (loading || (firebaseUser && !effectiveProfile && !bootstrapCompleted)) return <main className="content"><LoadingState /></main>;
+  if (loading) return <main className="content"><LoadingState /></main>;
   if (!firebaseReady && !testMode) {
     return (
       <main className="auth-page">
@@ -50,16 +66,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (!firebaseUser) {
     router.replace("/login");
     return null;
-  }
-  if (firebaseUser && !effectiveProfile && bootstrapCompleted) {
-    return (
-      <main className="auth-page">
-        <section className="auth-card">
-          <h1>Profile missing</h1>
-          <p className="muted">Your Firebase Auth account exists, but there is no matching Firestore profile in `users/{firebaseUser.uid}`.</p>
-        </section>
-      </main>
-    );
   }
   const resolvedProfile = effectiveProfile;
   if (!resolvedProfile) return null;

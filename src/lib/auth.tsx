@@ -2,7 +2,7 @@
 
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { auth, db, firebaseConfigured } from "@/lib/firebase";
 import type { AppUser } from "@/types";
 
@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const loadingRef = useRef(true);
 
   async function syncUserProfile(user: User) {
     const profileRef = doc(db, "users", user.uid);
@@ -52,6 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  useEffect(() => {
     const wantsTestMode = process.env.NEXT_PUBLIC_TEST_MODE === "true";
     const isLocalhost = typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname);
     if (wantsTestMode && isLocalhost) {
@@ -71,7 +76,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    const authReadyTimeout = window.setTimeout(() => {
+      if (!loadingRef.current) return;
+      console.warn("Auth state took too long to resolve; falling back to the current Firebase user.");
+      setFirebaseUser(auth.currentUser);
+      setLoading(false);
+    }, 7000);
+
     return onAuthStateChanged(auth, async (user) => {
+      window.clearTimeout(authReadyTimeout);
       setFirebaseUser(user);
       if (!user) {
         setProfile(null);
