@@ -8,17 +8,17 @@ import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, firebaseReady, firebaseUser } = useAuth();
+  const { login, firebaseReady, firebaseUser, profile, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (firebaseUser) {
+    if (firebaseUser && profile && !loading) {
       router.replace("/dashboard");
     }
-  }, [firebaseUser, router]);
+  }, [firebaseUser, loading, profile, router]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
