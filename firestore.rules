@@ -39,7 +39,15 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if signedIn() && isActive() && (request.auth.uid == userId || isStaff());
-      allow create: if isAdmin() && isActive();
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && !hasUserProfile()
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'email', 'role', 'status'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.displayName is string
+        && request.resource.data.email is string
+        && request.resource.data.role == 'member'
+        && request.resource.data.status == 'active';
       allow update: if isAdmin() && isActive() || (request.auth.uid == userId && isActive() && protectedUserFieldsUnchanged());
       allow delete: if false;
     }

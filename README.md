@@ -37,7 +37,7 @@ copy .env.local.example .env.local
 
 7. Create the first Firebase Auth user in Firebase Console.
 
-8. Add a matching Firestore profile at `users/{uid}`:
+8. On first sign-in, the app will create a default active `member` profile at `users/{uid}` if one does not already exist. To make that account staff-capable, update `users/{uid}.role` in Firestore Console to `admin` or `librarian`.
 
 ```json
 {
@@ -87,7 +87,7 @@ Do not add service account keys or private Firebase Admin credentials to the fro
 
 ## First Admin
 
-The public UI does not let a user promote themselves. Create the first admin profile manually in Firestore after creating the Firebase Auth account. After that, admin users can manage staff/member data according to the rules and UI.
+The app self-provisions a basic active `member` profile on first login so the account can get into the system immediately. After that, promote the profile in Firestore Console to `admin` or `librarian` for staff access.
 
 ## Notes
 

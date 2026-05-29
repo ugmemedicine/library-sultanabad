@@ -1,7 +1,7 @@
 "use client";
 
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { auth, db, firebaseConfigured } from "@/lib/firebase";
 import type { AppUser } from "@/types";
@@ -51,9 +51,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
-      const profileSnap = await getDoc(doc(db, "users", user.uid));
-      setProfile(profileSnap.exists() ? ({ uid: user.uid, ...profileSnap.data() } as AppUser) : null);
-      setLoading(false);
+      try {
+        const profileRef = doc(db, "users", user.uid);
+        const profileSnap = await getDoc(profileRef);
+        if (profileSnap.exists()) {
+          setProfile({ uid: user.uid, ...profileSnap.data() } as AppUser);
+          return;
+        }
+
+        const bootstrapProfile: AppUser = {
+          uid: user.uid,
+          displayName: user.displayName?.trim() || user.email?.split("@")[0] || "Library User",
+          email: user.email || "",
+          role: "member",
+          status: "active"
+        };
+
+        await setDoc(profileRef, bootstrapProfile);
+        setProfile(bootstrapProfile);
+      } catch (error) {
+        console.error("Failed to load or bootstrap the user profile.", error);
+        setProfile(null);
+      } finally {
+        setLoading(false);
+      }
     });
   }, []);
 

@@ -3,7 +3,7 @@
 ## Authentication
 
 - Unauthenticated user is redirected to `/login`.
-- Authenticated user without `users/{uid}` profile sees the controlled profile-missing state.
+- Authenticated user without `users/{uid}` profile gets a default active `member` profile on first login and can proceed.
 - Suspended or inactive user is blocked.
 - Admin can access settings.
 - Librarian cannot access settings.
