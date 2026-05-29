@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(true);
+  const authReadyTimeoutRef = useRef<number | null>(null);
 
   const syncUserProfile = useCallback(async (user: User) => {
     const profileRef = doc(db, "users", user.uid);
@@ -80,14 +81,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    window.setTimeout(() => {
+    if (authReadyTimeoutRef.current) window.clearTimeout(authReadyTimeoutRef.current);
+    authReadyTimeoutRef.current = window.setTimeout(() => {
       if (!loadingRef.current) return;
       console.warn("Auth state took too long to resolve; falling back to the current Firebase user.");
       setFirebaseUser(auth.currentUser);
       setLoading(false);
     }, 7000);
 
-    return onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (authReadyTimeoutRef.current) {
+        window.clearTimeout(authReadyTimeoutRef.current);
+        authReadyTimeoutRef.current = null;
+      }
       setFirebaseUser(user);
       if (!user) {
         setProfile(null);
@@ -103,6 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
       }
     });
+    return () => {
+      if (authReadyTimeoutRef.current) {
+        window.clearTimeout(authReadyTimeoutRef.current);
+        authReadyTimeoutRef.current = null;
+      }
+      unsubscribe();
+    };
   }, [syncUserProfile]);
 
   const value = useMemo<AuthContextValue>(
@@ -127,13 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setFirebaseUser(result.user);
         setProfile(buildBootstrapProfile(result.user));
         setLoading(false);
-        try {
-          await syncUserProfile(result.user);
-        } catch (error) {
+        void syncUserProfile(result.user).catch((error) => {
           console.error("Failed to bootstrap user after login.", error);
-          setProfile(null);
-          throw error;
-        }
+        });
         },
         logout: async () => {
           if (testMode) return;
