@@ -76,6 +76,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const userFullName = firebaseUser?.displayName?.trim() || resolvedProfile.displayName || resolvedProfile.email;
   const visibleItems = navItems.filter((item) => canAccess(resolvedProfile.role, item.roles));
+
+  async function handleLogout() {
+    await logout();
+    router.replace("/login");
+  }
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
@@ -102,7 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <strong>{userFullName}</strong>
             <div className="muted">{roleLabel(resolvedProfile.role)}</div>
           </div>
-          <button className="button secondary" onClick={logout} type="button">
+          <button className="button secondary" onClick={handleLogout} type="button">
             <LogOut size={16} /> Logout
           </button>
         </header>

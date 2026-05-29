@@ -16,6 +16,7 @@ export default function BooksPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [search, setSearch] = useState("");
   const { profile } = useAuth();
+  const canManageBooks = isStaff(profile?.role);
 
   useEffect(() => {
     listBooks(search || undefined).then(setBooks).catch(() => setBooks([]));
@@ -47,9 +48,9 @@ export default function BooksPage() {
         <PageHeader
           title="Books"
           text="Search catalog titles and manage book metadata."
-          action={
+        action={
           <div className="page-header-actions">
-            <Link className="button" href="/books/new">Add Book</Link>
+            {canManageBooks ? <Link className="button" href="/books/new">Add Book</Link> : null}
             <button className="button secondary" type="button" onClick={exportCsv}>Export CSV</button>
           </div>
         }
@@ -60,7 +61,7 @@ export default function BooksPage() {
       <div className="panel table-wrap">
         <table>
           <thead><tr><th>Title</th><th>Authors</th><th>Category</th><th>ISBN</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>{books.map((book) => <tr key={book.id}><td data-label="Title"><Link href={`/books/${book.id}`}>{book.title}</Link></td><td data-label="Authors">{book.authors?.join(", ")}</td><td data-label="Category">{book.category}</td><td data-label="ISBN">{book.isbn}</td><td data-label="Status"><StatusBadge status={book.isActive ? "available" : "removed"} /></td><td data-label="Actions"><div className="toolbar"><Link className="button secondary" href={`/books/${book.id}/edit`}>Edit</Link>{isStaff(profile?.role) ? <button className="button danger" type="button" onClick={() => handleDelete(book)} disabled={!book.id || !book.isActive}>Delete</button> : null}</div></td></tr>)}</tbody>
+          <tbody>{books.map((book) => <tr key={book.id}><td data-label="Title"><Link href={`/books/${book.id}`}>{book.title}</Link></td><td data-label="Authors">{book.authors?.join(", ")}</td><td data-label="Category">{book.category}</td><td data-label="ISBN">{book.isbn}</td><td data-label="Status"><StatusBadge status={book.isActive ? "available" : "removed"} /></td><td data-label="Actions"><div className="toolbar"><Link className="button secondary" href={`/books/${book.id}/edit`}>Edit</Link>{canManageBooks ? <button className="button danger" type="button" onClick={() => handleDelete(book)} disabled={!book.id || !book.isActive}>Delete</button> : null}</div></td></tr>)}</tbody>
         </table>
       </div>
     </ProtectedRoute>

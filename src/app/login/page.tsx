@@ -18,7 +18,7 @@ export default function LoginPage() {
     setMessage("");
     try {
       await login(email, password);
-      router.push("/dashboard");
+      router.replace("/dashboard");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login failed.");
     }
