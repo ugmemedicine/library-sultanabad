@@ -17,21 +17,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [navOpen, setNavOpen] = useState(false);
   const [bootstrapCompleted, setBootstrapCompleted] = useState(false);
+  const [bootstrappedProfile, setBootstrappedProfile] = useState<ReturnType<typeof useAuth>["profile"]>(null);
   const { profile, loading, logout, firebaseReady, firebaseUser, testMode, ensureProfile } = useAuth();
 
   useEffect(() => {
     if (loading || testMode || !firebaseUser || profile || bootstrapCompleted) return;
     let cancelled = false;
     (async () => {
-      await ensureProfile();
-      if (!cancelled) setBootstrapCompleted(true);
+      const ensuredProfile = await ensureProfile();
+      if (cancelled) return;
+      setBootstrappedProfile(ensuredProfile);
+      setBootstrapCompleted(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [bootstrapCompleted, ensureProfile, firebaseUser, loading, profile, testMode]);
 
-  if (loading || (firebaseUser && !profile && !bootstrapCompleted)) return <main className="content"><LoadingState /></main>;
+  const effectiveProfile = profile ?? bootstrappedProfile;
+
+  if (loading || (firebaseUser && !effectiveProfile && !bootstrapCompleted)) return <main className="content"><LoadingState /></main>;
   if (!firebaseReady && !testMode) {
     return (
       <main className="auth-page">
@@ -46,7 +51,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
     return null;
   }
-  if (firebaseUser && !profile && bootstrapCompleted) {
+  if (firebaseUser && !effectiveProfile && bootstrapCompleted) {
     return (
       <main className="auth-page">
         <section className="auth-card">
@@ -56,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
     );
   }
-  const resolvedProfile = profile;
+  const resolvedProfile = effectiveProfile;
   if (!resolvedProfile) return null;
   if (resolvedProfile.status !== "active") {
     router.replace("/unauthorized");
