@@ -2,7 +2,7 @@
 
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { auth, db, firebaseConfigured } from "@/lib/firebase";
 import type { AppUser } from "@/types";
 
@@ -19,6 +19,16 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function buildBootstrapProfile(user: User): AppUser {
+  return {
+    uid: user.uid,
+    displayName: user.displayName?.trim() || user.email?.split("@")[0] || "Library User",
+    email: user.email || "",
+    role: "member",
+    status: "active"
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [testMode, setTestMode] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -26,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(true);
 
-  async function syncUserProfile(user: User) {
+  const syncUserProfile = useCallback(async (user: User) => {
     const profileRef = doc(db, "users", user.uid);
     try {
       const profileSnap = await getDoc(profileRef);
@@ -39,18 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn("Profile read failed; attempting bootstrap for missing profile.", error);
     }
 
-    const bootstrapProfile: AppUser = {
-      uid: user.uid,
-      displayName: user.displayName?.trim() || user.email?.split("@")[0] || "Library User",
-      email: user.email || "",
-      role: "member",
-      status: "active"
-    };
+    const bootstrapProfile = buildBootstrapProfile(user);
 
     await setDoc(profileRef, bootstrapProfile);
     setProfile(bootstrapProfile);
     return bootstrapProfile;
-  }
+  }, []);
 
   useEffect(() => {
     loadingRef.current = loading;
@@ -76,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    const authReadyTimeout = window.setTimeout(() => {
+    window.setTimeout(() => {
       if (!loadingRef.current) return;
       console.warn("Auth state took too long to resolve; falling back to the current Firebase user.");
       setFirebaseUser(auth.currentUser);
@@ -84,23 +88,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 7000);
 
     return onAuthStateChanged(auth, async (user) => {
-      window.clearTimeout(authReadyTimeout);
       setFirebaseUser(user);
       if (!user) {
         setProfile(null);
         setLoading(false);
         return;
       }
+      setProfile(buildBootstrapProfile(user));
+      setLoading(false);
       try {
         await syncUserProfile(user);
       } catch (error) {
         console.error("Failed to load or bootstrap the user profile.", error);
         setProfile(null);
-      } finally {
-        setLoading(false);
       }
     });
-  }, []);
+  }, [syncUserProfile]);
 
   const value = useMemo<AuthContextValue>(
       () => ({
@@ -122,13 +125,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (testMode) return;
         const result = await signInWithEmailAndPassword(auth, email, password);
         setFirebaseUser(result.user);
+        setProfile(buildBootstrapProfile(result.user));
+        setLoading(false);
         try {
           await syncUserProfile(result.user);
-          setLoading(false);
         } catch (error) {
           console.error("Failed to bootstrap user after login.", error);
           setProfile(null);
-          setLoading(false);
           throw error;
         }
         },
@@ -140,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         }
       }),
-      [firebaseUser, loading, profile, testMode]
+      [firebaseUser, loading, profile, syncUserProfile, testMode]
     );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
