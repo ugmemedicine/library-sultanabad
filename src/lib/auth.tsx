@@ -100,13 +100,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
+      setLoading(false);
       try {
         await syncUserProfile(user);
       } catch (error) {
         console.error("Failed to load or bootstrap the user profile.", error);
         setProfile(null);
-      } finally {
-        setLoading(false);
       }
     });
     return () => {
@@ -138,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (testMode) return;
         const result = await signInWithEmailAndPassword(auth, email, password);
         setFirebaseUser(result.user);
+        setLoading(false);
         void syncUserProfile(result.user).catch((error) => {
           console.error("Failed to bootstrap user after login.", error);
         });

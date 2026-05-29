@@ -57,7 +57,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     return null;
   }
   const resolvedProfile = effectiveProfile;
-  if (!resolvedProfile) return null;
+  if (!resolvedProfile) {
+    return <main className="content"><LoadingState label="Loading profile" /></main>;
+  }
   if (resolvedProfile.status !== "active") {
     router.replace("/unauthorized");
     return null;
