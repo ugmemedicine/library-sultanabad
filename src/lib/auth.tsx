@@ -37,6 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadingRef = useRef(true);
   const authReadyTimeoutRef = useRef<number | null>(null);
 
+  async function signInWithTimeout(email: string, password: string, timeoutMs = 12000) {
+    return await Promise.race([
+      signInWithEmailAndPassword(auth, email, password),
+      new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error("Login timed out. Please try again.")), timeoutMs);
+      })
+    ]);
+  }
+
   const syncUserProfile = useCallback(async (user: User) => {
     const profileRef = doc(db, "users", user.uid);
     try {
@@ -135,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         login: async (email, password) => {
           if (testMode) return;
-        const result = await signInWithEmailAndPassword(auth, email, password);
+        const result = await signInWithTimeout(email, password);
         setFirebaseUser(result.user);
         setLoading(false);
         void syncUserProfile(result.user).catch((error) => {
